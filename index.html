@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Toxic Skill Club</title>
+  <style>
+    body { background: #111; color: #fff; font-family: sans-serif; text-align: center; }
+    .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin: 20px; }
+    .pc { padding: 20px; background: #222; border-radius: 8px; }
+    .pc.free { background: #2a2; }   /* свободный */
+    .pc.busy { background: #a22; }   /* занят */
+    button { margin-top: 20px; padding: 10px; background: #0f0; border: none; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Выбор ПК</h1>
+  <div class="grid">
+    <div class="pc free">ПК1</div>
+    <div class="pc busy">ПК2</div>
+    <div class="pc free">ПК3</div>
+    <!-- и так до ПК21 -->
+  </div>
+  <button onclick="Telegram.WebApp.sendData('book')">Забронировать</button>
+</body>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</html>
