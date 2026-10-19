@@ -1,0 +1,9 @@
+# Vercel публикует только WebApp (index.html). Код бота, конфиг и база туда не попадают.
+*.py
+tests/
+requirements.txt
+.env
+.env.*
+*.db
+*.db-*
+README.md

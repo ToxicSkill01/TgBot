@@ -1,26 +1,1315 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#05070a">
   <title>Toxic Skill Club</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&display=swap" rel="stylesheet">
   <style>
-    body { background: #111; color: #fff; font-family: sans-serif; text-align: center; }
-    .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin: 20px; }
-    .pc { padding: 20px; background: #222; border-radius: 8px; }
-    .pc.free { background: #2a2; }   /* свободный */
-    .pc.busy { background: #a22; }   /* занят */
-    button { margin-top: 20px; padding: 10px; background: #0f0; border: none; border-radius: 5px; }
+    :root {
+      --bg: #05070a;
+      --panel: rgba(16, 22, 29, .72);
+      --panel-solid: #0e141a;
+      --line: rgba(255, 255, 255, .07);
+      --line-2: rgba(255, 255, 255, .13);
+      --text: #eaf2ec;
+      --muted: #8b98a1;
+      --dim: #56616b;
+      --toxic: #39ff14;
+      --toxic-ink: #04150a;
+      --toxic-glow: rgba(57, 255, 20, .35);
+      --busy: #ff3d5f;
+      --busy-glow: rgba(255, 61, 95, .28);
+      --soon: #ffb21e;
+      --mine: #2ee6ff;
+      --mine-glow: rgba(46, 230, 255, .3);
+      --vip: #c44dff;
+      --radius: 18px;
+      --display: "Unbounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --safe-b: env(safe-area-inset-bottom, 0px);
+      --vh: var(--tg-viewport-stable-height, 100vh);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--body); }
+    body { min-height: 100vh; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+    button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+    button:disabled { cursor: default; }
+    [hidden] { display: none !important; }
+
+    /* ---------- фон ---------- */
+    .bg { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+    .bg::before, .bg::after {
+      content: ""; position: absolute; width: 70vmax; height: 70vmax; border-radius: 50%;
+      filter: blur(60px); opacity: .32; will-change: transform;
+    }
+    .bg::before { background: radial-gradient(circle, var(--toxic) 0, transparent 60%); top: -35vmax; left: -25vmax; animation: drift 18s ease-in-out infinite alternate; }
+    .bg::after { background: radial-gradient(circle, var(--vip) 0, transparent 60%); bottom: -40vmax; right: -30vmax; animation: drift 22s ease-in-out infinite alternate-reverse; }
+    .bg-grid {
+      position: absolute; inset: 0; opacity: .5;
+      background:
+        linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px) 0 0 / 28px 28px,
+        linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px) 0 0 / 28px 28px;
+      mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 75%);
+      -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 75%);
+    }
+    @keyframes drift { to { transform: translate(12vmax, 8vmax) scale(1.15); } }
+
+    .app { max-width: 760px; margin: 0 auto; padding: 14px 16px calc(28px + var(--safe-b)); }
+
+    /* ---------- шапка ---------- */
+    .hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 2px 14px; }
+    .logo { font-family: var(--display); font-weight: 900; font-size: 24px; letter-spacing: .02em; line-height: 1; }
+    .logo b { color: var(--toxic); text-shadow: 0 0 18px var(--toxic-glow), 0 0 2px var(--toxic); font-weight: 900; }
+    .logo-sub { margin-top: 6px; font-size: 12px; color: var(--muted); letter-spacing: .14em; text-transform: uppercase; }
+    .hero-right { display: flex; align-items: center; gap: 8px; }
+    .clock { font-family: var(--display); font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; }
+    .clock .colon { animation: blink 1s steps(1) infinite; }
+    @keyframes blink { 50% { opacity: .25; } }
+    .icon-btn {
+      width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center;
+      background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+    }
+    .icon-btn svg { width: 18px; height: 18px; }
+    .icon-btn.spin svg { animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .banner {
+      margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 1.4;
+      background: rgba(255, 178, 30, .1); border: 1px solid rgba(255, 178, 30, .3); color: #ffd58a;
+    }
+
+    /* ---------- статистика ---------- */
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    .stat {
+      padding: 12px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line);
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    }
+    .stat-num { font-family: var(--display); font-weight: 700; font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
+    .stat-lbl { margin-top: 6px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--c); box-shadow: 0 0 10px var(--c); }
+    .stat.free .stat-num { color: var(--toxic); text-shadow: 0 0 16px var(--toxic-glow); }
+    .stat.busy .stat-num { color: var(--busy); }
+    .stat.soon .stat-num { color: var(--soon); }
+
+    .quick {
+      width: 100%; margin-bottom: 16px; padding: 14px 16px; border-radius: 16px; display: flex; align-items: center; gap: 12px;
+      background: linear-gradient(120deg, rgba(57,255,20,.16), rgba(46,230,255,.08)); border: 1px solid rgba(57,255,20,.35);
+      text-align: left; position: relative; overflow: hidden;
+    }
+    .quick::after {
+      content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+      background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.14) 50%, transparent 70%);
+      animation: shine 3.2s ease-in-out infinite;
+    }
+    @keyframes shine { 60%, 100% { transform: translateX(100%); } }
+    .quick-ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--toxic); color: var(--toxic-ink); flex: none; box-shadow: 0 0 22px var(--toxic-glow); }
+    .quick-ico svg { width: 22px; height: 22px; }
+    .quick-title { font-weight: 700; font-size: 15px; }
+    .quick-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* ---------- мои брони ---------- */
+    .section-title { font-family: var(--display); font-size: 14px; font-weight: 700; letter-spacing: .04em; margin: 4px 2px 10px; display: flex; align-items: center; gap: 8px; }
+    .mine-list { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; margin: 0 -16px 18px; padding-inline: 16px; scroll-padding-inline: 16px; scrollbar-width: none; }
+    .mine-list::-webkit-scrollbar { display: none; }
+    .mine-card {
+      flex: 0 0 min(100%, 340px); scroll-snap-align: start; padding: 14px; border-radius: var(--radius);
+      background: linear-gradient(150deg, rgba(46,230,255,.14), rgba(16,22,29,.85) 55%); border: 1px solid rgba(46,230,255,.35);
+      box-shadow: 0 10px 40px -18px var(--mine-glow);
+    }
+    .mc-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .mc-pc { font-family: var(--display); font-weight: 700; font-size: 18px; }
+    .mc-pc small { font-family: var(--body); font-weight: 600; font-size: 12px; color: var(--muted); margin-left: 6px; }
+    .mc-badge { font-size: 12px; font-weight: 600; padding: 4px 9px; border-radius: 99px; background: rgba(255,255,255,.08); color: var(--muted); white-space: nowrap; }
+    .mc-badge.live { background: rgba(57,255,20,.15); color: var(--toxic); }
+    .mc-badge.live::before { content: "●"; margin-right: 5px; animation: blink 1.2s steps(1) infinite; }
+    .mc-time { margin-top: 10px; font-size: 14px; color: var(--muted); }
+    .mc-time b { color: var(--text); }
+    .mc-left { margin-top: 4px; font-family: var(--display); font-weight: 700; font-size: 26px; font-variant-numeric: tabular-nums; color: var(--mine); text-shadow: 0 0 18px var(--mine-glow); }
+    .mc-left small { font-family: var(--body); font-size: 12px; font-weight: 500; color: var(--muted); text-shadow: none; margin-left: 6px; }
+    .bar { height: 5px; border-radius: 5px; background: rgba(255,255,255,.08); overflow: hidden; margin-top: 10px; }
+    .bar i { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--c, var(--mine)); box-shadow: 0 0 10px var(--c, var(--mine)); transition: width .6s linear; }
+    .mc-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .btn {
+      flex: 1; padding: 10px 12px; border-radius: 12px; font-weight: 600; font-size: 14px;
+      background: rgba(255,255,255,.07); border: 1px solid var(--line-2); transition: transform .12s, opacity .2s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .45; }
+    .btn.primary { background: var(--toxic); color: var(--toxic-ink); border-color: transparent; box-shadow: 0 6px 24px -8px var(--toxic-glow); }
+    .btn.primary:disabled { opacity: 1; background: #232a32; color: var(--muted); box-shadow: none; }
+    .btn.danger { color: #ff8da1; border-color: rgba(255,61,95,.35); background: rgba(255,61,95,.08); }
+
+    /* ---------- фильтры ---------- */
+    .filters { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px 14px; padding: 2px 16px; scrollbar-width: none; }
+    .filters::-webkit-scrollbar { display: none; }
+    .chip {
+      flex: none; padding: 8px 14px; border-radius: 99px; font-size: 13px; font-weight: 600; white-space: nowrap;
+      background: var(--panel); border: 1px solid var(--line); color: var(--muted); transition: all .2s;
+    }
+    .chip.on { color: var(--toxic-ink); background: var(--toxic); border-color: transparent; box-shadow: 0 0 18px -4px var(--toxic-glow); }
+    .chip:disabled { opacity: .35; }
+
+    /* ---------- зоны и карточки ПК ---------- */
+    .zone { margin-bottom: 20px; }
+    .zone-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 0 2px 10px; }
+    .zone-name { font-family: var(--display); font-weight: 700; font-size: 17px; color: var(--zc); text-shadow: 0 0 16px color-mix(in srgb, var(--zc) 45%, transparent); }
+    .zone-price { font-size: 13px; font-weight: 700; padding: 3px 9px; border-radius: 99px; background: color-mix(in srgb, var(--zc) 14%, transparent); color: var(--zc); }
+    .zone-specs { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+
+    .pc {
+      position: relative; padding: 12px 11px 11px; border-radius: 16px; text-align: left; min-height: 124px;
+      background: var(--panel); border: 1px solid var(--line); overflow: hidden;
+      display: flex; flex-direction: column; gap: 2px; transition: transform .15s, border-color .3s, box-shadow .3s;
+      animation: pop .45s cubic-bezier(.2, .9, .3, 1.2) both; animation-delay: calc(var(--i, 0) * 22ms);
+    }
+    .pc:active { transform: scale(.96); }
+    .pc::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--c); box-shadow: 0 0 14px var(--c); opacity: .9; }
+    @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.96); } }
+    .pc-top { display: flex; justify-content: space-between; align-items: center; }
+    .pc-num { font-family: var(--display); font-weight: 900; font-size: 22px; line-height: 1.1; }
+    .pc-ico { width: 18px; height: 18px; color: var(--c); opacity: .9; }
+    .pc-state { margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--c); text-transform: uppercase; letter-spacing: .04em; }
+    .pc-main { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .pc-sub { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 15px; }
+    .pc .bar { margin-top: auto; height: 3px; }
+    .pc.free { --c: var(--toxic); }
+    .pc.free:hover, .pc.free:focus-visible { border-color: rgba(57,255,20,.45); box-shadow: 0 0 24px -10px var(--toxic-glow); }
+    .pc.soon { --c: var(--soon); }
+    .pc.busy { --c: var(--busy); background: linear-gradient(160deg, rgba(255,61,95,.1), var(--panel) 60%); }
+    .pc.busy .pc-num { opacity: .75; }
+    .pc.mine { --c: var(--mine); border-color: rgba(46,230,255,.5); box-shadow: 0 0 0 1px rgba(46,230,255,.25), 0 8px 30px -12px var(--mine-glow); background: linear-gradient(160deg, rgba(46,230,255,.14), var(--panel) 60%); }
+    .pc-tag { margin-top: auto; padding-top: 4px; font-size: 10px; font-weight: 800; color: var(--mine); letter-spacing: .05em; }
+    .pc.dim { opacity: .28; filter: saturate(.3); }
+
+    .skeleton { min-height: 124px; border-radius: 16px; background: linear-gradient(90deg, rgba(255,255,255,.04) 25%, rgba(255,255,255,.09) 37%, rgba(255,255,255,.04) 63%) 0 0 / 400% 100%; animation: shimmer 1.3s infinite; }
+    @keyframes shimmer { to { background-position: -135% 0; } }
+
+    .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; font-size: 12px; color: var(--muted); padding: 6px 0 4px; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .updated { text-align: center; font-size: 11px; color: var(--dim); margin-top: 8px; }
+
+    /* ---------- экран ошибки ---------- */
+    .screen { text-align: center; padding: 48px 20px; }
+    .screen-ico { width: 72px; height: 72px; margin: 0 auto 18px; border-radius: 22px; display: grid; place-items: center; background: rgba(255,61,95,.12); color: var(--busy); }
+    .screen-ico svg { width: 34px; height: 34px; }
+    .screen h2 { font-family: var(--display); font-size: 20px; margin: 0 0 8px; }
+    .screen p { color: var(--muted); font-size: 14px; line-height: 1.5; margin: 0 auto 20px; max-width: 340px; }
+
+    /* ---------- шторка бронирования ---------- */
+    .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 10; }
+    .backdrop.open { opacity: 1; pointer-events: auto; }
+    .sheet {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; max-width: 760px; margin: 0 auto;
+      max-height: calc(var(--vh) - 16px); overflow-y: auto; overscroll-behavior: contain;
+      background: linear-gradient(180deg, #111921, #090d12 40%); border: 1px solid var(--line-2); border-bottom: 0;
+      border-radius: 26px 26px 0 0; padding: 0 16px calc(18px + var(--safe-b));
+      transform: translateY(105%); transition: transform .42s cubic-bezier(.2, .9, .25, 1); box-shadow: 0 -20px 60px rgba(0,0,0,.6);
+    }
+    .sheet.open { transform: translateY(0); }
+    .sheet.dragging { transition: none; }
+    .sheet-grip { position: sticky; top: 0; z-index: 2; padding: 10px 0 6px; background: linear-gradient(#111921 70%, transparent); touch-action: none; }
+    .sheet-grip::before { content: ""; display: block; width: 42px; height: 5px; border-radius: 5px; background: var(--line-2); margin: 0 auto; }
+    .sheet-head { display: flex; align-items: center; gap: 12px; margin: 4px 0 10px; }
+    .sheet-num {
+      width: 58px; height: 58px; border-radius: 16px; display: grid; place-items: center; flex: none;
+      font-family: var(--display); font-weight: 900; font-size: 24px; color: var(--zc);
+      background: color-mix(in srgb, var(--zc) 12%, transparent); border: 1px solid color-mix(in srgb, var(--zc) 40%, transparent);
+      box-shadow: 0 0 30px -8px var(--zc);
+    }
+    .sheet-title { font-family: var(--display); font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+    .sheet-specs { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .sheet-head .icon-btn { margin-left: auto; }
+    .sheet-status { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid var(--line); font-size: 14px; margin-bottom: 14px; }
+    .sheet-status b { font-variant-numeric: tabular-nums; }
+
+    .picker { margin-bottom: 14px; padding: 12px 0 10px; border-radius: 18px; background: rgba(255,255,255,.03); border: 1px solid var(--line); }
+    .picker-head { display: flex; align-items: center; justify-content: space-between; padding: 0 12px 8px; gap: 10px; }
+    .picker-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; font-weight: 700; }
+    .picker-value { position: relative; font-family: var(--display); font-weight: 700; font-size: 19px; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 6px; }
+    .picker-value .edit { width: 16px; height: 16px; color: var(--muted); }
+    .picker-value input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; font-size: 16px; }
+    .picker-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px 0; }
+    .picker-row .chips { display: flex; gap: 6px; overflow-x: auto; flex: 1; scrollbar-width: none; }
+    .picker-row .chips::-webkit-scrollbar { display: none; }
+    .picker-row .chip { padding: 7px 11px; font-size: 12px; }
+    .step {
+      width: 38px; height: 34px; border-radius: 11px; flex: none; display: grid; place-items: center; font-size: 20px; font-weight: 700;
+      background: rgba(255,255,255,.06); border: 1px solid var(--line-2); user-select: none; -webkit-user-select: none; touch-action: manipulation;
+    }
+    .step:active { background: rgba(57,255,20,.18); border-color: rgba(57,255,20,.5); }
+
+    /* линейка (поминутный ползунок) */
+    .ruler { position: relative; height: 66px; outline: none; }
+    .ruler:focus-visible { box-shadow: inset 0 0 0 2px var(--toxic); border-radius: 12px; }
+    .ruler-scroll {
+      position: absolute; inset: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; touch-action: pan-x; cursor: grab;
+      mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+      -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+    }
+    .ruler-scroll::-webkit-scrollbar { display: none; }
+    .ruler-track { position: relative; height: 100%; }
+    .ruler-layer { position: absolute; top: 0; bottom: 0; }
+    .ruler-seg { position: absolute; top: 8px; height: 30px; border-radius: 6px; }
+    .ruler-seg.busy { background: repeating-linear-gradient(135deg, rgba(255,61,95,.55) 0 6px, rgba(255,61,95,.25) 6px 12px); box-shadow: inset 0 0 0 1px rgba(255,61,95,.6); }
+    .ruler-seg.mine { background: rgba(46,230,255,.35); box-shadow: inset 0 0 0 1px var(--mine); }
+    .ruler-seg.block { background: repeating-linear-gradient(135deg, rgba(255,61,95,.35) 0 6px, transparent 6px 12px); }
+    .ruler-seg.sel { top: 12px; height: 22px; background: linear-gradient(90deg, rgba(57,255,20,.55), rgba(57,255,20,.22)); box-shadow: 0 0 18px -2px var(--toxic-glow), inset 0 0 0 1px var(--toxic); }
+    .ruler-seg.sel.bad { background: linear-gradient(90deg, rgba(255,61,95,.6), rgba(255,61,95,.25)); box-shadow: inset 0 0 0 1px var(--busy); }
+    .ruler-ticks {
+      position: absolute; top: 8px; height: 30px;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.55) 0 2px, transparent 2px) var(--o-major) 100% / var(--p-major) 100% repeat-x,
+        linear-gradient(90deg, rgba(255,255,255,.32) 0 1px, transparent 1px) var(--o-mid) 100% / var(--p-mid) 60% repeat-x,
+        linear-gradient(90deg, rgba(255,255,255,.14) 0 1px, transparent 1px) 0 100% / var(--p-min) 32% repeat-x;
+    }
+    .ruler-lbl { position: absolute; top: 42px; transform: translateX(-50%); font-size: 11px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .ruler-lbl.day { color: var(--toxic); font-weight: 700; }
+    .ruler-needle { position: absolute; left: 50%; top: 0; bottom: 18px; width: 2px; margin-left: -1px; background: var(--toxic); box-shadow: 0 0 12px var(--toxic), 0 0 2px var(--toxic); pointer-events: none; border-radius: 2px; }
+    .ruler-needle::before { content: ""; position: absolute; top: -2px; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--toxic); }
+
+    .summary {
+      display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: end; padding: 14px; border-radius: 18px; margin-bottom: 10px;
+      background: linear-gradient(130deg, rgba(57,255,20,.12), rgba(255,255,255,.02)); border: 1px solid rgba(57,255,20,.3); transition: all .3s;
+    }
+    .summary.bad { background: linear-gradient(130deg, rgba(255,61,95,.12), rgba(255,255,255,.02)); border-color: rgba(255,61,95,.35); }
+    .sum-range { font-size: 15px; font-variant-numeric: tabular-nums; }
+    .sum-range b { font-family: var(--display); font-size: 17px; }
+    .sum-dur { font-size: 13px; color: var(--muted); }
+    .sum-price { grid-row: 1 / span 2; grid-column: 2; font-family: var(--display); font-weight: 900; font-size: 26px; color: var(--toxic); text-shadow: 0 0 20px var(--toxic-glow); font-variant-numeric: tabular-nums; }
+    .summary.bad .sum-price { color: var(--muted); text-shadow: none; text-decoration: line-through; }
+    .warn { display: flex; gap: 10px; align-items: flex-start; padding: 11px 12px; border-radius: 14px; font-size: 13px; line-height: 1.45; background: rgba(255,61,95,.08); border: 1px solid rgba(255,61,95,.3); color: #ffb3c0; margin-bottom: 10px; animation: shake .35s; }
+    .warn.info { background: rgba(255,178,30,.08); border-color: rgba(255,178,30,.3); color: #ffd58a; animation: none; }
+    .warn button { margin-left: auto; flex: none; padding: 6px 10px; border-radius: 10px; font-size: 12px; font-weight: 700; background: rgba(255,255,255,.1); color: var(--text); }
+    @keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+    .cta { width: 100%; padding: 15px; border-radius: 16px; font-weight: 800; font-size: 16px; margin: 4px 0 14px; }
+
+    .schedule h4 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin: 6px 2px 8px; }
+    .schedule ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+    .schedule li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.035); border: 1px solid var(--line); font-size: 13px; }
+    .schedule li.mine { border-color: rgba(46,230,255,.4); background: rgba(46,230,255,.07); }
+    .schedule li .t { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .schedule li .w { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .schedule li button { margin-left: auto; flex: none; padding: 6px 10px; border-radius: 9px; font-size: 12px; font-weight: 700; color: #ff8da1; background: rgba(255,61,95,.1); }
+    .schedule .empty { color: var(--muted); font-size: 13px; padding: 4px 2px; }
+
+    /* ---------- успех ---------- */
+    .success { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 24px; background: rgba(3,5,7,.86); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); opacity: 0; pointer-events: none; transition: opacity .3s; }
+    .success.open { opacity: 1; pointer-events: auto; }
+    .success canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .success-card { position: relative; text-align: center; max-width: 340px; transform: scale(.9); transition: transform .5s cubic-bezier(.2, 1.4, .3, 1); }
+    .success.open .success-card { transform: none; }
+    .check { width: 96px; height: 96px; margin: 0 auto 18px; border-radius: 50%; display: grid; place-items: center; background: var(--toxic); box-shadow: 0 0 60px var(--toxic-glow), 0 0 0 10px rgba(57,255,20,.12); }
+    .check svg { width: 50px; height: 50px; stroke: var(--toxic-ink); stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 60; stroke-dashoffset: 60; }
+    .success.open .check svg { animation: draw .5s .25s ease-out forwards; }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    .success h2 { font-family: var(--display); font-weight: 900; font-size: 28px; margin: 0 0 8px; }
+    .success h2 b { color: var(--toxic); text-shadow: 0 0 20px var(--toxic-glow); }
+    .success p { color: var(--muted); margin: 0 0 6px; font-size: 15px; line-height: 1.5; }
+    .success .btn { margin-top: 18px; width: 100%; padding: 14px; font-size: 16px; }
+
+    .toast {
+      position: fixed; left: 50%; bottom: calc(24px + var(--safe-b)); z-index: 30; transform: translate(-50%, 20px); opacity: 0;
+      max-width: calc(100% - 32px); padding: 12px 16px; border-radius: 14px; font-size: 14px; line-height: 1.4;
+      background: #1a222b; border: 1px solid var(--line-2); box-shadow: 0 12px 40px rgba(0,0,0,.5); transition: all .3s; pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .toast.err { border-color: rgba(255,61,95,.5); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
   </style>
 </head>
 <body>
-  <h1>Выбор ПК</h1>
-  <div class="grid">
-    <div class="pc free">ПК1</div>
-    <div class="pc busy">ПК2</div>
-    <div class="pc free">ПК3</div>
-    <!-- и так до ПК21 -->
+  <div class="bg"><div class="bg-grid"></div></div>
+
+  <div class="app">
+    <header class="hero">
+      <div>
+        <div class="logo">TOXIC <b>SKILL</b></div>
+        <div class="logo-sub">компьютерный клуб</div>
+      </div>
+      <div class="hero-right">
+        <div class="clock" id="clock" aria-label="Время клуба">--<span class="colon">:</span>--</div>
+        <button class="icon-btn" id="refreshBtn" aria-label="Обновить">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="banner" id="banner" hidden></div>
+
+    <div id="content">
+      <section class="stats">
+        <div class="stat free"><div class="stat-num" id="statFree">–</div><div class="stat-lbl"><i class="dot" style="--c:var(--toxic)"></i>свободно</div></div>
+        <div class="stat busy"><div class="stat-num" id="statBusy">–</div><div class="stat-lbl"><i class="dot" style="--c:var(--busy)"></i>занято</div></div>
+        <div class="stat soon"><div class="stat-num" id="statSoon">–</div><div class="stat-lbl"><i class="dot" style="--c:var(--soon)"></i>скоро бронь</div></div>
+      </section>
+
+      <button class="quick" id="quickBtn" hidden>
+        <span class="quick-ico"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span>
+        <span><div class="quick-title">Сесть прямо сейчас</div><div class="quick-sub" id="quickSub"></div></span>
+      </button>
+
+      <section id="mine" hidden>
+        <div class="section-title">Мои брони</div>
+        <div class="mine-list" id="mineList"></div>
+      </section>
+
+      <nav class="filters" id="filters" aria-label="Фильтр"></nav>
+      <main id="zones">
+        <div class="grid">
+          <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+          <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+          <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+        </div>
+      </main>
+
+      <footer>
+        <div class="legend">
+          <span><i class="dot" style="--c:var(--toxic)"></i>свободен</span>
+          <span><i class="dot" style="--c:var(--soon)"></i>скоро бронь</span>
+          <span><i class="dot" style="--c:var(--busy)"></i>занят</span>
+          <span><i class="dot" style="--c:var(--mine)"></i>ваш</span>
+        </div>
+        <div class="updated" id="updated"></div>
+      </footer>
+    </div>
+
+    <div class="screen" id="errorScreen" hidden>
+      <div class="screen-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><path d="M12 20h.01"/><path d="M3 3l18 18"/></svg></div>
+      <h2>Нет связи с клубом</h2>
+      <p id="errorText">Сервер бронирования сейчас недоступен.</p>
+      <button class="btn primary" id="retryBtn" style="max-width:220px">Повторить</button>
+    </div>
   </div>
-  <button onclick="Telegram.WebApp.sendData('book')">Забронировать</button>
+
+  <div class="backdrop" id="backdrop"></div>
+  <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+    <div class="sheet-grip" id="sheetGrip"></div>
+    <div class="sheet-head">
+      <div class="sheet-num" id="sheetNum">00</div>
+      <div>
+        <div class="sheet-title" id="sheetTitle">ПК</div>
+        <div class="sheet-specs" id="sheetSpecs"></div>
+      </div>
+      <button class="icon-btn" id="sheetClose" aria-label="Закрыть">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-status" id="sheetStatus"></div>
+
+    <div class="picker">
+      <div class="picker-head">
+        <span class="picker-label">Начало</span>
+        <label class="picker-value"><span id="startValue">—</span>
+          <svg class="edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <input type="time" step="60" id="startInput" aria-label="Точное время начала">
+        </label>
+      </div>
+      <div id="startRuler" aria-label="Время начала"></div>
+      <div class="picker-row">
+        <button class="step" data-step="start" data-dir="-1" aria-label="На минуту раньше">−</button>
+        <div class="chips" id="startChips"></div>
+        <button class="step" data-step="start" data-dir="1" aria-label="На минуту позже">+</button>
+      </div>
+    </div>
+
+    <div class="picker">
+      <div class="picker-head">
+        <span class="picker-label">Длительность</span>
+        <span class="picker-value" id="durValue">—</span>
+      </div>
+      <div id="durRuler" aria-label="Длительность"></div>
+      <div class="picker-row">
+        <button class="step" data-step="dur" data-dir="-1" aria-label="На минуту меньше">−</button>
+        <div class="chips" id="durChips"></div>
+        <button class="step" data-step="dur" data-dir="1" aria-label="На минуту больше">+</button>
+      </div>
+    </div>
+
+    <div class="summary" id="summary">
+      <div class="sum-range" id="sumRange"></div>
+      <div class="sum-dur" id="sumDur"></div>
+      <div class="sum-price" id="sumPrice"></div>
+    </div>
+    <div id="warn"></div>
+    <button class="btn primary cta" id="cta" hidden>Забронировать</button>
+
+    <div class="schedule">
+      <h4>Расписание ПК</h4>
+      <ul id="schedule"></ul>
+    </div>
+  </section>
+
+  <div class="success" id="success" role="dialog" aria-modal="true">
+    <canvas id="confetti"></canvas>
+    <div class="success-card">
+      <div class="check"><svg viewBox="0 0 52 52"><path d="M14 27l8 8 16-17"/></svg></div>
+      <h2 id="successTitle">ПК <b>00</b> ваш!</h2>
+      <p id="successRange"></p>
+      <p id="successNote">Напомню в чате за 15 минут до начала</p>
+      <button class="btn primary" id="successBtn">Супер!</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+  'use strict';
+
+  // ---------- окружение ----------
+  const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+  const inTelegram = !!(tg && tg.initData);
+  const tgAtLeast = v => !!(tg && tg.isVersionAtLeast && tg.isVersionAtLeast(v));
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = id => document.getElementById(id);
+  const pad = n => String(n).padStart(2, '0');
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+  const haptic = {
+    call(fn) { if (tgAtLeast('6.1')) { try { fn(tg.HapticFeedback); } catch (e) { /* старый клиент */ } } },
+    tick() { this.call(h => h.selectionChanged()); },
+    tap(style = 'light') { this.call(h => h.impactOccurred(style)); },
+    ok() { this.call(h => h.notificationOccurred('success')); },
+    err() { this.call(h => h.notificationOccurred('error')); },
+    warn() { this.call(h => h.notificationOccurred('warning')); },
+  };
+
+  // Адрес API: бот передаёт его в ?api=, иначе WebApp отдаёт сам бот.
+  const API = (() => {
+    const isSafe = u => /^https:\/\/[^\s/]+/i.test(u) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(u);
+    let base = new URLSearchParams(location.search).get('api') || '';
+    try {
+      if (base && isSafe(base)) localStorage.setItem('tsc_api', base);
+      else base = localStorage.getItem('tsc_api') || '';
+    } catch (e) { /* storage недоступен */ }
+    return (isSafe(base) ? base : location.origin).replace(/\/+$/, '');
+  })();
+
+  // ---------- состояние ----------
+  const S = {
+    data: null, offsetMs: 0, filter: 'all', loadedAt: 0, loading: false,
+    sheet: null, submitting: false, lastDur: 120, cards: new Map(), structureKey: '',
+  };
+  try { S.lastDur = +localStorage.getItem('tsc_dur') || 120; } catch (e) { /* ignore */ }
+
+  const nowSec = () => Math.floor((Date.now() + S.offsetMs) / 1000);
+  const nowMin = () => Math.floor(nowSec() / 60);
+  const tzOff = () => (S.data ? S.data.tz_offset : 180);
+  const rules = () => S.data.rules;
+  const zoneById = id => S.data.zones.find(z => z.id === id);
+  const pcById = id => S.data.pcs.find(p => p.id === id);
+  const me = () => S.data && S.data.me;
+  const canBook = () => !!me();
+
+  // ---------- форматирование (часовой пояс клуба) ----------
+  function hm(sec) {
+    const m = (((Math.floor(sec / 60) + tzOff()) % 1440) + 1440) % 1440;
+    return pad(Math.floor(m / 60)) + ':' + pad(m % 60);
+  }
+  const dayIdx = sec => Math.floor((Math.floor(sec / 60) + tzOff()) / 1440);
+  function dayLabel(sec) {
+    const d = dayIdx(sec) - dayIdx(nowSec());
+    if (d === 0) return 'сегодня';
+    if (d === 1) return 'завтра';
+    if (d === 2) return 'послезавтра';
+    const date = new Date((sec + tzOff() * 60) * 1000);
+    return pad(date.getUTCDate()) + '.' + pad(date.getUTCMonth() + 1);
+  }
+  // «18:45» для сегодня, «завтра 01:10» для других дней
+  const when = sec => (dayIdx(sec) === dayIdx(nowSec()) ? hm(sec) : dayLabel(sec) + ' ' + hm(sec));
+  function dur(min) {
+    const h = Math.floor(min / 60), m = min % 60;
+    return h && m ? `${h} ч ${m} мин` : h ? `${h} ч` : `${m} мин`;
+  }
+  function left(sec) {
+    sec = Math.max(0, sec);
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    if (h) return `${h} ч ${m} мин`;
+    if (m >= 10) return `${m} мин`;
+    return `${pad(m)}:${pad(s)}`;
+  }
+  const hms = sec => { sec = Math.max(0, sec); return `${Math.floor(sec / 3600)}:${pad(Math.floor((sec % 3600) / 60))}:${pad(sec % 60)}`; };
+  const price = (pc, min) => Math.ceil(zoneById(pc.zone).price * min / 60);
+
+  // Статус ПК — та же логика, что pc_status() на сервере.
+  function pcStatus(pc, now) {
+    const slots = pc.slots;
+    const cur = slots.find(s => s.start <= now && now < s.end);
+    if (cur) {
+      let until = cur.end;
+      for (const s of slots) if (s.start <= until && until < s.end) until = s.end;
+      return { state: 'busy', cur, until, mine: cur.mine };
+    }
+    const next = slots.find(s => s.start > now);
+    const myNext = slots.find(s => s.start > now && s.mine);
+    if (next && next.start - now <= rules().soon * 60) return { state: 'soon', next, myNext };
+    return { state: 'free', next, myNext };
+  }
+
+  // ---------- API ----------
+  class ApiError extends Error { constructor(msg, status) { super(msg); this.status = status; } }
+  async function api(path, { method = 'GET', body } = {}) {
+    const headers = { 'ngrok-skip-browser-warning': '1' };
+    if (inTelegram) headers.Authorization = 'tma ' + tg.initData;
+    if (body) headers['Content-Type'] = 'application/json';
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    try {
+      const res = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: ctrl.signal });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new ApiError(data.error || `Ошибка сервера (${res.status})`, res.status);
+      return data;
+    } catch (e) {
+      if (e instanceof ApiError) throw e;
+      throw new ApiError(e.name === 'AbortError' ? 'Сервер не отвечает' : 'Нет связи с сервером клуба', 0);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function refresh({ manual = false } = {}) {
+    if (S.loading) return;
+    S.loading = true;
+    if (manual) $('refreshBtn').classList.add('spin');
+    const t0 = Date.now();
+    try {
+      const data = await api('/api/state');
+      const t1 = Date.now();
+      S.offsetMs = data.now * 1000 + (t1 - t0) / 2 - t1;
+      for (const pc of data.pcs) pc.slots.sort((a, b) => a.start - b.start);
+      S.data = data;
+      S.loadedAt = Date.now();
+      $('banner').hidden = inTelegram || !!data.me;
+      $('errorScreen').hidden = true;
+      $('content').hidden = false;
+      renderStructure();
+      tick();
+      if (S.sheet) updateSheet();
+    } catch (e) {
+      if (!S.data) {
+        $('content').hidden = true;
+        $('errorScreen').hidden = false;
+        $('errorText').textContent = e.status === 0
+          ? 'Сервер бронирования сейчас недоступен. Проверьте интернет или попробуйте чуть позже.'
+          : e.status === 404 ? 'Откройте приложение через кнопку в Telegram-боте клуба.' : e.message;
+      } else if (manual) {
+        toast(e.message, true);
+      }
+      if (S.data && e.status === 401) { $('banner').hidden = false; $('banner').textContent = e.message; }
+    } finally {
+      S.loading = false;
+      setTimeout(() => $('refreshBtn').classList.remove('spin'), 300);
+    }
+  }
+
+  // ---------- главный экран ----------
+  const monitorIco = '<svg class="pc-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>';
+
+  function renderStructure() {
+    const d = S.data;
+    const key = d.zones.map(z => z.id + z.price).join() + '|' + d.pcs.map(p => p.id + p.zone).join();
+    if (key === S.structureKey) return;
+    S.structureKey = key;
+    S.cards.clear();
+
+    const filters = [['all', 'Все'], ['free', 'Свободные'], ...d.zones.map(z => [z.id, z.name])];
+    $('filters').innerHTML = filters.map(([id, name]) => `<button class="chip${S.filter === id ? ' on' : ''}" data-filter="${esc(id)}">${esc(name)}</button>`).join('');
+
+    const zonesEl = $('zones');
+    zonesEl.innerHTML = '';
+    let i = 0;
+    for (const z of d.zones) {
+      const pcs = d.pcs.filter(p => p.zone === z.id);
+      if (!pcs.length) continue;
+      const sec = document.createElement('section');
+      sec.className = 'zone';
+      sec.dataset.zone = z.id;
+      sec.style.setProperty('--zc', z.color);
+      sec.innerHTML = `<div class="zone-head"><span class="zone-name">${esc(z.name)}</span><span class="zone-price">${z.price} ₽/ч</span><span class="zone-specs">${esc(z.specs)}</span></div><div class="grid"></div>`;
+      const grid = sec.querySelector('.grid');
+      for (const pc of pcs) {
+        const card = document.createElement('button');
+        card.className = 'pc';
+        card.dataset.id = pc.id;
+        card.style.setProperty('--i', i++);
+        grid.appendChild(card);
+        S.cards.set(pc.id, { el: card, html: '', cls: '' });
+      }
+      zonesEl.appendChild(sec);
+    }
+    applyZoneFilter();
+  }
+
+  function cardView(pc, now) {
+    const st = pcStatus(pc, now);
+    const z = zoneById(pc.zone);
+    let cls = st.state, label, main, sub = '', bar = '', tag = '';
+    if (st.state === 'busy') {
+      label = st.mine ? 'Ваш ПК' : 'Занят';
+      main = 'до ' + when(st.until);
+      sub = 'ещё ' + left(st.until - now);
+      const pct = clamp((now - st.cur.start) / (st.until - st.cur.start) * 100, 0, 100);
+      bar = `<div class="bar"><i style="width:${pct.toFixed(1)}%"></i></div>`;
+      if (st.mine) cls = 'busy mine';
+    } else {
+      label = 'Свободен';
+      if (st.next && st.next.start - now < 12 * 3600) {
+        main = 'до ' + when(st.next.start);
+        sub = st.state === 'soon' ? 'бронь через ' + left(st.next.start - now) : `${z.price} ₽/ч`;
+      } else {
+        main = 'сейчас';
+        sub = `${z.price} ₽/ч`;
+      }
+      if (st.myNext) { cls += ' mine'; tag = '<span class="pc-tag">ВАША БРОНЬ ' + hm(st.myNext.start) + '</span>'; }
+    }
+    if (S.filter === 'free' && st.state === 'busy') cls += ' dim';
+    const html = `<div class="pc-top"><span class="pc-num">${pad(pc.id)}</span>${monitorIco}</div>`
+      + `<div class="pc-state">${label}</div><div class="pc-main">${main}</div><div class="pc-sub">${sub}</div>${bar}${tag}`;
+    return { cls: 'pc ' + cls, html, label: `ПК ${pc.id}, ${label} ${main}` };
+  }
+
+  function tick() {
+    if (!S.data) return;
+    const now = nowSec();
+    const local = (((Math.floor(now / 60) + tzOff()) % 1440) + 1440) % 1440;
+    $('clock').innerHTML = `${pad(Math.floor(local / 60))}<span class="colon">:</span>${pad(local % 60)}`;
+
+    let free = 0, busy = 0, soon = 0, best = null;
+    for (const pc of S.data.pcs) {
+      const card = S.cards.get(pc.id);
+      const st = pcStatus(pc, now);
+      if (st.state === 'busy') busy++; else free++;
+      if (st.state === 'soon') soon++;
+      if (st.state !== 'busy') {
+        const window = st.next ? st.next.start - now : Infinity;
+        if (!best || window > best.window) best = { pc, window };
+      }
+      if (!card) continue;
+      const v = cardView(pc, now);
+      if (v.html !== card.html) { card.el.innerHTML = v.html; card.html = v.html; card.el.setAttribute('aria-label', v.label); }
+      if (v.cls !== card.cls) { card.el.className = v.cls; card.cls = v.cls; }
+    }
+    $('statFree').textContent = free;
+    $('statBusy').textContent = busy;
+    $('statSoon').textContent = soon;
+
+    const quick = $('quickBtn');
+    if (best && canBook()) {
+      quick.hidden = false;
+      quick.dataset.id = best.pc.id;
+      $('quickSub').textContent = `ПК ${pad(best.pc.id)} · ${zoneById(best.pc.zone).name} · ` + (best.window === Infinity ? 'свободен надолго' : 'свободен ' + left(best.window));
+    } else {
+      quick.hidden = true;
+    }
+
+    renderMine(now);
+    if (S.sheet && S.lastMin !== Math.floor(now / 60)) updateSheet();
+    S.lastMin = Math.floor(now / 60);
+    const ago = Math.round((Date.now() - S.loadedAt) / 1000);
+    $('updated').textContent = ago < 5 ? 'обновлено только что' : `обновлено ${ago < 60 ? ago + ' с' : Math.round(ago / 60) + ' мин'} назад`;
+    if (S.sheet) updateSheetStatus();
+  }
+
+  function applyZoneFilter() {
+    for (const sec of $('zones').children) sec.hidden = !!sec.dataset.zone && S.filter !== 'all' && S.filter !== 'free' && S.filter !== sec.dataset.zone;
+  }
+
+  function renderMine(now) {
+    const list = $('mineList');
+    const bookings = me() ? me().bookings.filter(b => b.end > now) : [];
+    $('mine').hidden = !bookings.length;
+    const ids = bookings.map(b => b.id + ':' + b.end + ':' + (b.start <= now)).join();
+    if (list.dataset.ids !== ids) {
+      list.dataset.ids = ids;
+      list.innerHTML = bookings.map(b => {
+        const live = b.start <= now;
+        const z = zoneById(b.zone);
+        return `<article class="mine-card" data-id="${b.id}">
+          <div class="mc-top"><span class="mc-pc">ПК ${pad(b.pc_id)}<small>${esc(z ? z.name : '')}</small></span><span class="mc-badge${live ? ' live' : ''}"></span></div>
+          <div class="mc-time"><b>${esc(when(b.start))}</b> → <b>${hm(b.end)}</b> · ${dur(Math.round((b.end - b.start) / 60))} · ${b.price} ₽</div>
+          <div class="mc-left"></div>
+          ${live ? '<div class="bar"><i></i></div>' : ''}
+          <div class="mc-actions">
+            ${live ? `<button class="btn" data-act="extend" data-id="${b.id}">+30 мин</button>` : ''}
+            <button class="btn danger" data-act="release" data-id="${b.id}">${live ? 'Освободить' : 'Отменить'}</button>
+          </div></article>`;
+      }).join('');
+    }
+    for (const b of bookings) {
+      const el = list.querySelector(`[data-id="${b.id}"]`);
+      if (!el) continue;
+      const live = b.start <= now;
+      el.querySelector('.mc-badge').textContent = live ? 'идёт' : 'через ' + left(b.start - now);
+      el.querySelector('.mc-left').innerHTML = live
+        ? `${hms(b.end - now)}<small>осталось</small>`
+        : `${hm(b.start)}<small>${esc(dayLabel(b.start))}</small>`;
+      const bar = el.querySelector('.bar i');
+      if (bar) bar.style.width = clamp((now - b.start) / (b.end - b.start) * 100, 0, 100) + '%';
+    }
+  }
+
+  // ---------- линейка: поминутный ползунок ----------
+  class Ruler {
+    constructor(root, opts) {
+      this.root = root;
+      this.o = Object.assign({ px: 3, step: 1, major: 60, mid: 5, labelEvery: 30, align: v => v }, opts);
+      this.min = 0; this.max = 1; this.value = 0; this.segs = [];
+      root.classList.add('ruler');
+      root.tabIndex = 0;
+      root.setAttribute('role', 'slider');
+      root.innerHTML = '<div class="ruler-scroll"><div class="ruler-track"><div class="ruler-layer segs"></div><div class="ruler-ticks"></div><div class="ruler-layer lbls"></div></div></div><div class="ruler-needle"></div>';
+      this.scroller = root.querySelector('.ruler-scroll');
+      this.track = root.querySelector('.ruler-track');
+      this.segLayer = root.querySelector('.segs');
+      this.ticks = root.querySelector('.ruler-ticks');
+      this.lblLayer = root.querySelector('.lbls');
+      this.scroller.addEventListener('scroll', () => this.onScroll(), { passive: true });
+      const grab = () => { this.lock = false; this.touching = true; };
+      const release = () => { this.touching = false; this.scheduleSettle(); };
+      this.scroller.addEventListener('touchstart', grab, { passive: true });
+      this.scroller.addEventListener('touchend', release, { passive: true });
+      this.scroller.addEventListener('wheel', () => { this.lock = false; }, { passive: true });
+      this.enableMouseDrag();
+      root.addEventListener('keydown', e => {
+        const k = { ArrowLeft: -1, ArrowRight: 1, ArrowDown: -1, ArrowUp: 1 }[e.key];
+        if (!k) return;
+        e.preventDefault();
+        this.nudge(k * (e.shiftKey ? 15 : this.o.step));
+      });
+      if (window.ResizeObserver) new ResizeObserver(() => this.layout()).observe(root);
+    }
+    enableMouseDrag() {
+      let startX = 0, startLeft = 0, dragging = false;
+      this.scroller.addEventListener('mousedown', e => {
+        dragging = true; startX = e.clientX; startLeft = this.scroller.scrollLeft; this.lock = false; e.preventDefault();
+      });
+      window.addEventListener('mousemove', e => { if (dragging) this.scroller.scrollLeft = startLeft - (e.clientX - startX); });
+      window.addEventListener('mouseup', () => { if (dragging) { dragging = false; this.scheduleSettle(); } });
+    }
+    snap(v) { return clamp(Math.round(v / this.o.step) * this.o.step, this.min, this.max); }
+    setRange(min, max) {
+      this.min = min; this.max = Math.max(min + 1, max);
+      this.layout();
+      this.drawLabels();
+      this.segKey = null;
+      if (this.segs) this.setSegments(this.segs);
+    }
+    layout() {
+      const w = this.root.clientWidth || 320, px = this.o.px, span = (this.max - this.min) * px;
+      this.half = w / 2;
+      this.track.style.width = span + w + 'px';
+      for (const el of [this.segLayer, this.ticks, this.lblLayer]) { el.style.left = this.half + 'px'; el.style.width = span + 'px'; }
+      const off = p => ((p - (((this.o.align(this.min)) % p) + p) % p) % p) * px + 'px';
+      const t = this.ticks.style;
+      t.setProperty('--p-min', px + 'px');
+      t.setProperty('--p-mid', this.o.mid * px + 'px');
+      t.setProperty('--p-major', this.o.major * px + 'px');
+      t.setProperty('--o-mid', off(this.o.mid));
+      t.setProperty('--o-major', off(this.o.major));
+      this.scrollTo(this.value, false);
+    }
+    drawLabels() {
+      const every = this.o.labelEvery, a0 = this.o.align(this.min);
+      let html = '';
+      for (let v = this.min + ((every - (a0 % every)) % every); v <= this.max; v += every) {
+        const lbl = this.o.label(v);
+        if (lbl) html += `<span class="ruler-lbl${lbl.cls ? ' ' + lbl.cls : ''}" style="left:${(v - this.min) * this.o.px}px">${esc(lbl.text)}</span>`;
+      }
+      this.lblLayer.innerHTML = html;
+    }
+    setSegments(segs) {
+      this.segs = segs;
+      const key = JSON.stringify(segs);
+      if (key === this.segKey) return;
+      this.segKey = key;
+      const px = this.o.px;
+      this.segLayer.innerHTML = segs.map(s => {
+        const a = clamp(s.from, this.min, this.max), b = clamp(s.to, this.min, this.max);
+        if (b <= a) return '';
+        return `<div class="ruler-seg ${s.cls}" style="left:${(a - this.min) * px}px;width:${Math.max(2, (b - a) * px)}px"></div>`;
+      }).join('');
+    }
+    set(v, smooth = false) {
+      this.value = this.snap(v);
+      this.root.setAttribute('aria-valuenow', this.value);
+      this.scrollTo(this.value, smooth);
+    }
+    nudge(delta) {
+      const v = this.snap(this.value + delta);
+      if (v === this.value) { haptic.warn(); return; }
+      this.set(v, false);
+      haptic.tick();
+      this.o.onInput(v);
+    }
+    scrollTo(v, smooth) {
+      const x = (v - this.min) * this.o.px;
+      if (smooth && !reduceMotion) {
+        this.lock = true; this.target = x;
+        clearTimeout(this.lockTimer);
+        this.lockTimer = setTimeout(() => { this.lock = false; }, 800);
+        this.scroller.scrollTo({ left: x, behavior: 'smooth' });
+      } else {
+        this.scroller.scrollLeft = x;
+      }
+    }
+    onScroll() {
+      if (this.raf) return;
+      this.raf = requestAnimationFrame(() => {
+        this.raf = 0;
+        const x = this.scroller.scrollLeft;
+        if (this.lock) { if (Math.abs(x - this.target) < 2) this.lock = false; return; }
+        const v = this.snap(this.min + x / this.o.px);
+        if (v !== this.value) {
+          const prev = this.value;
+          this.value = v;
+          this.root.setAttribute('aria-valuenow', v);
+          if (Math.floor(prev / 5) !== Math.floor(v / 5)) haptic.tick();
+          this.o.onInput(v);
+        }
+        this.scheduleSettle();
+      });
+    }
+    scheduleSettle() {
+      clearTimeout(this.settleTimer);
+      this.settleTimer = setTimeout(() => {
+        if (this.touching || this.lock) return;
+        const x = (this.value - this.min) * this.o.px;
+        if (Math.abs(this.scroller.scrollLeft - x) > 0.5) this.scroller.scrollTo({ left: x, behavior: reduceMotion ? 'auto' : 'smooth' });
+      }, 160);
+    }
+  }
+
+  const startRuler = new Ruler($('startRuler'), {
+    px: 3, major: 60, mid: 5, labelEvery: 30,
+    align: v => v + tzOff(),
+    label: v => {
+      const sec = v * 60;
+      const local = (((v + tzOff()) % 1440) + 1440) % 1440;
+      return local === 0 ? { text: dayLabel(sec), cls: 'day' } : { text: hm(sec) };
+    },
+    onInput: v => { if (S.sheet) { S.sheet.start = v; updateSheet(); } },
+  });
+  const durRuler = new Ruler($('durRuler'), {
+    px: 3, major: 60, mid: 5, labelEvery: 30,
+    label: v => ({ text: v % 60 ? `${Math.floor(v / 60)}:30` : `${v / 60} ч` }),
+    onInput: v => { if (S.sheet) { S.sheet.dur = v; S.lastDur = v; updateSheet(); } },
+  });
+
+  // ---------- шторка бронирования ----------
+  function openSheet(pcId) {
+    const pc = pcById(pcId);
+    if (!pc) return;
+    const z = zoneById(pc.zone);
+    const n = nowMin(), r = rules();
+    S.sheet = { pcId, start: nearestFree(pcSlotsMin(pc), n, r.min), dur: clamp(S.lastDur, r.min, r.max) };
+
+    const sheet = $('sheet');
+    sheet.style.setProperty('--zc', z.color);
+    $('sheetNum').textContent = pad(pc.id);
+    $('sheetTitle').innerHTML = `ПК ${pad(pc.id)} <span class="zone-price" style="--zc:${esc(z.color)}">${esc(z.name)} · ${z.price} ₽/ч</span>`;
+    $('sheetSpecs').textContent = z.specs;
+    $('warn').dataset.key = '';
+
+    sheet.hidden = false;
+    sheet.scrollTop = 0;
+    startRuler.o.step = r.step;
+    durRuler.o.step = r.step;
+    startRuler.setRange(n, n + r.horizon_hours * 60);
+    durRuler.setRange(r.min, r.max);
+    S.sheet.start = startRuler.snap(S.sheet.start);
+    S.sheet.dur = durRuler.snap(S.sheet.dur);
+    startRuler.set(S.sheet.start);
+    durRuler.set(S.sheet.dur);
+    renderChips();
+    updateSheet();
+    requestAnimationFrame(() => {
+      sheet.classList.add('open');
+      $('backdrop').classList.add('open');
+    });
+    if (tg) tg.BackButton.show();
+    haptic.tap('medium');
+  }
+
+  function closeSheet() {
+    if (!S.sheet) return;
+    S.sheet = null;
+    const sheet = $('sheet');
+    sheet.classList.remove('open');
+    sheet.style.transform = '';
+    $('backdrop').classList.remove('open');
+    setTimeout(() => { if (!S.sheet) sheet.hidden = true; }, 420);
+    if (tg && !$('success').classList.contains('open')) tg.BackButton.hide();
+    updateMainButton(null);
+    try { localStorage.setItem('tsc_dur', S.lastDur); } catch (e) { /* ignore */ }
+  }
+
+  function renderChips() {
+    $('startChips').innerHTML = [['now', 'Сейчас'], ['nearest', '⚡ Ближайшее'], ['15', '+15 мин'], ['30', '+30 мин'], ['60', '+1 ч'], ['120', '+2 ч']]
+      .map(([k, t]) => `<button class="chip" data-start="${k}">${t}</button>`).join('');
+    $('durChips').innerHTML = [60, 90, 120, 180, 300].map(m => `<button class="chip" data-dur="${m}">${dur(m)}</button>`).join('')
+      + '<button class="chip" data-dur="max">Макс</button>';
+  }
+
+  // Слоты ПК в минутах; «до упора» — с учётом броней встык.
+  const pcSlotsMin = pc => pc.slots.map(s => ({ from: Math.floor(s.start / 60), to: Math.ceil(s.end / 60), mine: s.mine, id: s.id, who: s.who }));
+  function chainEnd(slots, t) {
+    let end = t;
+    for (const s of slots) if (s.from <= end && end < s.to) end = s.to;
+    return end;
+  }
+  // Первое время ≥ from, когда ПК свободен минимум minDur минут.
+  function nearestFree(slots, from, minDur) {
+    let t = from;
+    for (let guard = 0; guard < 200; guard++) {
+      t = chainEnd(slots, t);
+      const next = slots.find(s => s.from >= t);
+      if (!next || next.from - t >= minDur) return t;
+      t = next.to;
+    }
+    return t;
+  }
+
+  function evaluate() {
+    const sh = S.sheet, pc = pcById(sh.pcId), r = rules(), n = nowMin();
+    const slots = pcSlotsMin(pc);
+    const start = Math.max(sh.start, n);
+    const inside = slots.find(s => s.from <= start && start < s.to);
+    const next = slots.find(s => s.from > start);
+    const avail = inside ? 0 : next ? next.from - start : Infinity;
+    const res = { pc, slots, start, end: start + sh.dur, avail, inside, next, ok: false, problem: null };
+    const myActive = me() ? me().bookings.filter(b => b.end > nowSec()).length : 0;
+    if (!canBook()) res.problem = 'auth';
+    else if (inside) res.problem = 'inside';
+    else if (sh.dur > avail) res.problem = 'overlap';
+    else if (!me().is_admin && myActive >= r.max_active) res.problem = 'limit';
+    else res.ok = true;
+    return res;
+  }
+
+  function updateSheet() {
+    if (!S.sheet || !S.data) return;
+    const sh = S.sheet, r = rules(), n = nowMin();
+    const e = evaluate();
+
+    $('startValue').textContent = sh.start <= n ? 'сейчас · ' + hm(n * 60) : dayLabel(sh.start * 60) + ' ' + hm(sh.start * 60);
+    $('startInput').value = hm(e.start * 60);
+    $('durValue').textContent = dur(sh.dur);
+
+    const segs = e.slots.map(s => ({ from: s.from, to: s.to, cls: s.mine ? 'mine' : 'busy' }));
+    segs.push({ from: e.start, to: e.end, cls: 'sel' + (e.ok || e.problem === 'auth' ? '' : ' bad') });
+    startRuler.setSegments(segs);
+    durRuler.setSegments(e.avail < r.max ? [{ from: Math.max(r.min, e.avail), to: r.max, cls: 'block' }] : []);
+
+    $('sumRange').innerHTML = `<b>${esc(when(e.start * 60))}</b> → <b>${hm(e.end * 60)}</b>`;
+    $('sumDur').textContent = dur(sh.dur) + (dayIdx(e.end * 60) !== dayIdx(e.start * 60) ? ' · до ' + dayLabel(e.end * 60) : '');
+    const total = price(e.pc, sh.dur);
+    $('sumPrice').textContent = total + ' ₽';
+    $('summary').classList.toggle('bad', !e.ok && e.problem !== 'auth');
+
+    let warn = '';
+    if (e.problem === 'inside') {
+      const free = chainEnd(e.slots, e.start);
+      warn = `<div class="warn"><span>В это время ПК занят до <b>${esc(when(free * 60))}</b></span><button data-fix="start" data-v="${free}">С ${hm(free * 60)}</button></div>`;
+    } else if (e.problem === 'overlap') {
+      if (e.avail >= r.min) {
+        warn = `<div class="warn"><span>С ${hm(e.next.from * 60)} ПК уже забронирован. Можно максимум <b>${dur(e.avail)}</b></span><button data-fix="dur" data-v="${e.avail}">До ${hm(e.next.from * 60)}</button></div>`;
+      } else {
+        const t = nearestFree(e.slots, e.start, sh.dur);
+        warn = `<div class="warn"><span>Окно до следующей брони меньше ${dur(r.min)}</span><button data-fix="start" data-v="${t}">С ${esc(when(t * 60))}</button></div>`;
+      }
+    } else if (e.problem === 'limit') {
+      warn = `<div class="warn info"><span>У вас уже ${r.max_active} активные брони — это максимум</span></div>`;
+    } else if (e.problem === 'auth') {
+      warn = '<div class="warn info"><span>Это режим просмотра. Чтобы забронировать, откройте приложение через бота в Telegram.</span></div>';
+    }
+    const warnEl = $('warn');
+    if (warnEl.dataset.key !== warn) {
+      if (warn && !warnEl.dataset.key) haptic.warn();
+      warnEl.innerHTML = warn;
+      warnEl.dataset.key = warn;
+    }
+
+    for (const c of $('durChips').children) {
+      const v = c.dataset.dur === 'max' ? Math.min(e.avail, r.max) : +c.dataset.dur;
+      c.disabled = v > e.avail || v < r.min || v > r.max;
+      c.classList.toggle('on', v === sh.dur);
+    }
+    for (const c of $('startChips').children) c.classList.toggle('on', c.dataset.start === 'now' && sh.start <= n);
+
+    renderSchedule(e);
+    updateSheetStatus();
+    const text = e.ok ? `Забронировать · ${total} ₽` : e.problem === 'auth' ? 'Только просмотр' : e.problem === 'limit' ? 'Лимит броней' : 'Время занято';
+    updateMainButton({ text, ok: e.ok && !S.submitting });
+  }
+
+  function updateSheetStatus() {
+    if (!S.sheet) return;
+    const pc = pcById(S.sheet.pcId);
+    if (!pc) return;
+    const now = nowSec();
+    const st = pcStatus(pc, now);
+    let html;
+    if (st.state === 'busy') html = `<i class="dot" style="--c:var(--${st.mine ? 'mine' : 'busy'})"></i>${st.mine ? 'Ваша сессия' : 'Занят'} до <b>${esc(when(st.until))}</b> · ещё ${left(st.until - now)}`;
+    else if (st.next) html = `<i class="dot" style="--c:var(--${st.state === 'soon' ? 'soon' : 'toxic'})"></i>Свободен до <b>${esc(when(st.next.start))}</b> · ещё ${left(st.next.start - now)}`;
+    else html = `<i class="dot" style="--c:var(--toxic)"></i>Свободен — броней нет на ${rules().horizon_hours} ч вперёд`;
+    if ($('sheetStatus').dataset.html !== html) { $('sheetStatus').innerHTML = html; $('sheetStatus').dataset.html = html; }
+  }
+
+  function renderSchedule(e) {
+    const admin = me() && me().is_admin;
+    const items = e.slots.map(s => {
+      const can = s.id && (s.mine || admin);
+      const who = s.mine ? 'ваша бронь' : s.who ? esc(s.who) : 'занято';
+      const end = dayIdx(s.to * 60) === dayIdx(s.from * 60) ? hm(s.to * 60) : when(s.to * 60);
+      return `<li class="${s.mine ? 'mine' : ''}"><span class="t">${esc(when(s.from * 60))} – ${esc(end)}</span><span class="w">${who}</span>${can ? `<button data-act="release" data-id="${s.id}">${s.from * 60 <= nowSec() ? 'Освободить' : 'Отменить'}</button>` : ''}</li>`;
+    }).join('');
+    const html = items || `<li class="empty">Броней нет — ПК свободен ближайшие ${rules().horizon_hours} ч</li>`;
+    if ($('schedule').dataset.html !== html) { $('schedule').innerHTML = html; $('schedule').dataset.html = html; }
+  }
+
+  // ---------- кнопка бронирования ----------
+  const MB = inTelegram ? tg.MainButton : null;
+  function updateMainButton(p) {
+    const cta = $('cta');
+    if (!p) { if (MB) MB.hide(); cta.hidden = true; return; }
+    if (MB) {
+      MB.setParams({
+        text: p.text, is_visible: true, is_active: p.ok, has_shine_effect: p.ok,
+        color: p.ok ? '#39ff14' : '#2a3038', text_color: p.ok ? '#04150a' : '#8b98a1',
+      });
+      if (S.submitting) MB.showProgress(false); else MB.hideProgress();
+    } else {
+      cta.hidden = false;
+      cta.disabled = !p.ok;
+      cta.textContent = S.submitting ? 'Бронируем…' : p.text;
+    }
+  }
+
+  async function submitBooking() {
+    if (!S.sheet || S.submitting) return;
+    const e = evaluate();
+    if (!e.ok) { haptic.err(); return; }
+    S.submitting = true;
+    updateSheet();
+    try {
+      const start = Math.max(e.start, nowMin()) * 60;
+      const { booking } = await api('/api/bookings', { method: 'POST', body: { pc_id: e.pc.id, start, minutes: S.sheet.dur } });
+      haptic.ok();
+      closeSheet();
+      showSuccess(booking);
+      refresh();
+    } catch (err) {
+      haptic.err();
+      toast(err.message, true);
+      if (err.status === 409) refresh();
+    } finally {
+      S.submitting = false;
+      if (S.sheet) updateSheet();
+    }
+  }
+
+  function confirmDialog(text) {
+    return new Promise(resolve => {
+      if (tgAtLeast('6.2')) tg.showConfirm(text, ok => resolve(!!ok));
+      else resolve(window.confirm(text));
+    });
+  }
+
+  async function bookingAction(act, id) {
+    const all = S.data.pcs.flatMap(p => p.slots.map(s => ({ ...s, pc_id: p.id })));
+    const b = (me() ? me().bookings : []).find(x => x.id === id) || all.find(x => x.id === id);
+    if (!b) return;
+    const live = b.start <= nowSec();
+    try {
+      if (act === 'release') {
+        const ok = await confirmDialog(live ? `Освободить ПК ${pad(b.pc_id)} прямо сейчас?` : `Отменить бронь ПК ${pad(b.pc_id)} на ${when(b.start)}?`);
+        if (!ok) return;
+        await api(`/api/bookings/${id}`, { method: 'DELETE' });
+        haptic.ok();
+        toast(live ? 'ПК освобождён' : 'Бронь отменена');
+      } else if (act === 'extend') {
+        const { booking } = await api(`/api/bookings/${id}/extend`, { method: 'POST', body: { minutes: 30 } });
+        haptic.ok();
+        toast(`Продлено до ${hm(booking.end)} 🔥`);
+      }
+      await refresh();
+    } catch (err) {
+      haptic.err();
+      toast(err.message, true);
+    }
+  }
+
+  // ---------- успех + конфетти ----------
+  function showSuccess(b) {
+    $('successTitle').innerHTML = `ПК <b>${pad(b.pc_id)}</b> ваш!`;
+    $('successRange').textContent = `${dayLabel(b.start)} ${hm(b.start)} → ${hm(b.end)} · ${dur(Math.round((b.end - b.start) / 60))} · ${b.price} ₽`;
+    $('successNote').textContent = b.start - nowSec() > 15 * 60
+      ? 'Напомню в чате за 15 минут до начала. Оплата на месте.'
+      : 'Можно приходить! Оплата на месте.';
+    $('success').classList.add('open');
+    if (tg) tg.BackButton.show();
+    confetti();
+  }
+  function closeSuccess() {
+    $('success').classList.remove('open');
+    if (tg && !S.sheet) tg.BackButton.hide();
+  }
+
+  function confetti() {
+    if (reduceMotion) return;
+    const canvas = $('confetti'), ctx = canvas.getContext('2d');
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = canvas.width = innerWidth * dpr, h = canvas.height = innerHeight * dpr;
+    const colors = ['#39ff14', '#2ee6ff', '#c44dff', '#ffffff', '#b6ff3b'];
+    const parts = Array.from({ length: 160 }, () => ({
+      x: w / 2, y: h * 0.42, vx: (Math.random() - 0.5) * 22 * dpr, vy: (Math.random() * -18 - 6) * dpr,
+      r: (Math.random() * 5 + 3) * dpr, c: colors[(Math.random() * colors.length) | 0], a: Math.random() * Math.PI, va: (Math.random() - 0.5) * 0.4,
+    }));
+    const t0 = performance.now();
+    (function frame(t) {
+      const k = (t - t0) / 2400;
+      ctx.clearRect(0, 0, w, h);
+      if (k >= 1) return;
+      for (const p of parts) {
+        p.vy += 0.55 * dpr; p.vx *= 0.985; p.x += p.vx; p.y += p.vy; p.a += p.va;
+        ctx.save(); ctx.globalAlpha = 1 - k; ctx.translate(p.x, p.y); ctx.rotate(p.a);
+        ctx.fillStyle = p.c; ctx.fillRect(-p.r, -p.r / 2, p.r * 2, p.r);
+        ctx.restore();
+      }
+      requestAnimationFrame(frame);
+    })(t0);
+  }
+
+  let toastTimer;
+  function toast(text, isErr = false) {
+    const el = $('toast');
+    el.textContent = text;
+    el.className = 'toast show' + (isErr ? ' err' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = 'toast' + (isErr ? ' err' : ''); }, 3200);
+  }
+
+  // ---------- события ----------
+  document.addEventListener('click', e => {
+    const t = e.target.closest('button');
+    if (!t) return;
+    if (t.classList.contains('pc')) return openSheet(+t.dataset.id);
+    if (t.dataset.filter) {
+      S.filter = t.dataset.filter;
+      for (const c of $('filters').children) c.classList.toggle('on', c === t);
+      haptic.tick();
+      applyZoneFilter();
+      return tick();
+    }
+    if (t.dataset.act) return bookingAction(t.dataset.act, +t.dataset.id);
+    if (!S.sheet) return;
+    const sh = S.sheet, n = nowMin(), r = rules();
+    if (t.dataset.start) {
+      const k = t.dataset.start;
+      const target = k === 'now' ? n : k === 'nearest' ? nearestFree(pcSlotsMin(pcById(sh.pcId)), n, sh.dur) : n + +k;
+      sh.start = startRuler.snap(target);
+      startRuler.set(sh.start, true);
+      haptic.tick();
+      updateSheet();
+    } else if (t.dataset.dur) {
+      const e2 = evaluate();
+      sh.dur = durRuler.snap(t.dataset.dur === 'max' ? Math.min(e2.avail, r.max) : +t.dataset.dur);
+      S.lastDur = sh.dur;
+      durRuler.set(sh.dur, true);
+      haptic.tick();
+      updateSheet();
+    } else if (t.dataset.fix) {
+      const v = +t.dataset.v;
+      if (t.dataset.fix === 'start') { sh.start = startRuler.snap(v); startRuler.set(sh.start, true); }
+      else { sh.dur = durRuler.snap(v); S.lastDur = sh.dur; durRuler.set(sh.dur, true); }
+      haptic.tap();
+      updateSheet();
+    }
+  });
+
+  // Кнопки ± с автоповтором при удержании.
+  document.querySelectorAll('.step').forEach(btn => {
+    let timer = null, count = 0;
+    const ruler = btn.dataset.step === 'start' ? startRuler : durRuler;
+    const dir = +btn.dataset.dir;
+    const fire = () => { ruler.nudge(dir * (count > 12 ? 5 : 1) * ruler.o.step); count++; };
+    const stop = () => { clearTimeout(timer); timer = null; };
+    btn.addEventListener('pointerdown', e => {
+      e.preventDefault(); count = 0; fire();
+      const loop = delay => { timer = setTimeout(() => { fire(); loop(Math.max(45, delay * 0.85)); }, delay); };
+      loop(380);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, stop));
+    btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); count = 0; fire(); } });
+  });
+
+  $('startInput').addEventListener('click', e => { try { e.target.showPicker(); } catch (err) { /* нет showPicker */ } });
+  $('startInput').addEventListener('change', e => {
+    if (!S.sheet || !e.target.value) return;
+    const [h, m] = e.target.value.split(':').map(Number);
+    const n = nowMin();
+    const localNow = (((n + tzOff()) % 1440) + 1440) % 1440;
+    let delta = h * 60 + m - localNow;
+    if (delta < 0) delta += 1440;
+    S.sheet.start = startRuler.snap(n + delta);
+    startRuler.set(S.sheet.start, true);
+    updateSheet();
+  });
+
+  $('quickBtn').addEventListener('click', () => openSheet(+$('quickBtn').dataset.id));
+  $('sheetClose').addEventListener('click', closeSheet);
+  $('backdrop').addEventListener('click', closeSheet);
+  $('cta').addEventListener('click', submitBooking);
+  $('successBtn').addEventListener('click', closeSuccess);
+  $('refreshBtn').addEventListener('click', () => { haptic.tap(); refresh({ manual: true }); });
+  $('retryBtn').addEventListener('click', () => refresh({ manual: true }));
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if ($('success').classList.contains('open')) closeSuccess(); else closeSheet();
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+
+  // Свайп вниз по «ручке» закрывает шторку.
+  (() => {
+    const grip = $('sheetGrip'), sheet = $('sheet');
+    let y0 = null, dy = 0;
+    grip.addEventListener('pointerdown', e => { y0 = e.clientY; dy = 0; sheet.classList.add('dragging'); grip.setPointerCapture(e.pointerId); });
+    grip.addEventListener('pointermove', e => { if (y0 === null) return; dy = Math.max(0, e.clientY - y0); sheet.style.transform = `translateY(${dy}px)`; });
+    const end = () => {
+      if (y0 === null) return;
+      y0 = null; sheet.classList.remove('dragging'); sheet.style.transform = '';
+      if (dy > 110) closeSheet();
+    };
+    grip.addEventListener('pointerup', end);
+    grip.addEventListener('pointercancel', end);
+  })();
+
+  // ---------- старт ----------
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    if (tgAtLeast('6.1')) { try { tg.setBackgroundColor('#05070a'); } catch (e) { /* ignore */ } }
+    if (tgAtLeast('6.9')) { try { tg.setHeaderColor('#05070a'); } catch (e) { /* ignore */ } }
+    if (tgAtLeast('7.10')) { try { tg.setBottomBarColor('#05070a'); } catch (e) { /* ignore */ } }
+    if (tgAtLeast('7.7')) { try { tg.disableVerticalSwipes(); } catch (e) { /* ignore */ } }
+    tg.BackButton.onClick(() => { if ($('success').classList.contains('open')) closeSuccess(); else closeSheet(); });
+    if (MB) MB.onClick(submitBooking);
+  }
+  $('banner').textContent = 'Режим просмотра: бронировать можно, открыв приложение через бота в Telegram.';
+
+  refresh();
+  setInterval(tick, 1000);
+  setInterval(() => { if (!document.hidden) refresh(); }, 15000);
+  </script>
 </body>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
 </html>
