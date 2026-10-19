@@ -41,12 +41,16 @@ def origin_of(url: str) -> str:
 BOT_TOKEN = _env("BOT_TOKEN")
 ADMIN_IDS = _parse_ids(_env("ADMIN_IDS"))
 
-# Публичный HTTPS-адрес этого бота (туннель cloudflared/ngrok или домен VPS).
+# Публичный HTTPS-адрес бота. Пусто — бот сам поднимет туннель (см. TUNNEL).
 PUBLIC_URL = _env("PUBLIC_URL").rstrip("/")
-# Где лежит index.html. Пусто — WebApp отдаёт сам бот по PUBLIC_URL.
-WEBAPP_URL = (_env("WEBAPP_URL") or PUBLIC_URL).rstrip("/")
+# Туннель для бота на домашнем ПК: auto | cloudflared | tuna | off.
+# auto = tuna, если задан TUNA_TOKEN, иначе cloudflared.
+TUNNEL = _env("TUNNEL", "auto").lower()
+TUNA_TOKEN = _env("TUNA_TOKEN")
+# Где лежит index.html (например, Vercel). Пусто — WebApp отдаёт сам бот по PUBLIC_URL.
+WEBAPP_URL = _env("WEBAPP_URL").rstrip("/")
 
-WEB_HOST = _env("WEB_HOST", "0.0.0.0")
+WEB_HOST = _env("WEB_HOST", "127.0.0.1")  # туннель подключается локально
 WEB_PORT = int(_env("WEB_PORT", "8080"))
 DB_PATH = Path(_env("DB_PATH") or BASE_DIR / "club.db")
 

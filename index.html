@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#05070a">
+  <meta name="tsc-app" content="2">
   <title>Toxic Skill Club</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -600,7 +601,7 @@
         $('content').hidden = true;
         $('errorScreen').hidden = false;
         $('errorText').textContent = e.status === 0
-          ? 'Сервер бронирования сейчас недоступен. Проверьте интернет или попробуйте чуть позже.'
+          ? 'Сервер бронирования сейчас недоступен. Закройте окно и откройте заново кнопкой «🎮 Бронь» в чате с ботом — адрес мог обновиться.'
           : e.status === 404 ? 'Откройте приложение через кнопку в Telegram-боте клуба.' : e.message;
       } else if (manual) {
         toast(e.message, true);

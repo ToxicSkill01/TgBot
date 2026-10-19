@@ -208,7 +208,20 @@ class ApiTests(AioHTTPTestCase):
         self.storage = Storage(":memory:")
         self.clock = Clock(int(time.time()) // 60 * 60)
         self.service = BookingService(self.storage, clock=self.clock)
-        return create_app(self.service, FakeNotifier(), bot_token=TOKEN, allowed_origins={"https://club.example"})
+        return create_app(
+            self.service, FakeNotifier(), bot_token=TOKEN, allowed_origins={"https://club.example"},
+            index_path=config.BASE_DIR / "index.html",
+        )
+
+    async def test_index_page(self) -> None:
+        resp = await self.client.get("/", headers={"Accept-Encoding": "gzip"})
+        self.assertEqual(resp.status, 200)
+        self.assertEqual(resp.headers["Content-Encoding"], "gzip")
+        self.assertIn('name="tsc-app"', await resp.text())
+        resp = await self.client.get("/", headers={"If-None-Match": resp.headers["ETag"]})
+        self.assertEqual(resp.status, 304)
+        resp = await self.client.get("/.env")
+        self.assertEqual(resp.status, 404)
 
     def auth(self, user_id: int = 42) -> dict:
         return {"Authorization": "tma " + sign({"id": user_id, "first_name": "Test"}, int(time.time()))}

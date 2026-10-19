@@ -1,5 +1,7 @@
 """HTTP API для WebApp (aiohttp) с проверкой подписи Telegram initData."""
 
+import gzip
+import hashlib
 import json
 import logging
 import time
@@ -141,7 +143,9 @@ class Api:
         return _json({"ok": True, "now": self.service.now()})
 
     async def state(self, request: web.Request) -> web.Response:
-        return _json(self.service.snapshot(self.user(request)))
+        response = _json(self.service.snapshot(self.user(request)))
+        response.enable_compression()
+        return response
 
     async def create_booking(self, request: web.Request) -> web.Response:
         user = self.require_user(request)
@@ -183,9 +187,22 @@ def create_app(
     app.router.add_delete("/api/bookings/{booking_id}", api.release_booking)
 
     if index_path is not None:
-        # Отдаём только index.html, а не весь каталог проекта (там .env и база).
-        async def index(request: web.Request) -> web.FileResponse:
-            return web.FileResponse(index_path, headers={"Cache-Control": "no-cache"})
-
-        app.router.add_get("/", index)
+        app.router.add_get("/", make_index_handler(index_path))
     return app
+
+
+def make_index_handler(index_path: Path) -> Handler:
+    """Отдаёт только index.html (не весь каталог — там .env и база), сжатым и с ETag."""
+    page = index_path.read_bytes()
+    page_gz = gzip.compress(page, 9)
+    etag = '"' + hashlib.sha1(page).hexdigest()[:16] + '"'
+    headers = {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", "ETag": etag, "Vary": "Accept-Encoding"}
+
+    async def index(request: web.Request) -> web.Response:
+        if request.headers.get("If-None-Match") == etag:
+            return web.Response(status=304, headers=headers)
+        if "gzip" in request.headers.get("Accept-Encoding", ""):
+            return web.Response(body=page_gz, headers={**headers, "Content-Encoding": "gzip"})
+        return web.Response(body=page, headers=headers)
+
+    return index

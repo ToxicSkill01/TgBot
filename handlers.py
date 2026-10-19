@@ -45,18 +45,22 @@ class BookingAction(CallbackData, prefix="bk"):
 
 
 def webapp_url() -> str:
-    """WebApp на Vercel узнаёт адрес API из параметра ?api=."""
-    if config.PUBLIC_URL and config.origin_of(config.PUBLIC_URL) != config.origin_of(config.WEBAPP_URL):
-        return f"{config.WEBAPP_URL}/?api={quote(config.PUBLIC_URL, safe='')}"
-    return f"{config.WEBAPP_URL}/"
+    """Адрес WebApp. Страница на Vercel узнаёт адрес API из параметра ?api=."""
+    page = config.WEBAPP_URL or config.PUBLIC_URL
+    if config.PUBLIC_URL and config.origin_of(config.PUBLIC_URL) != config.origin_of(page):
+        return f"{page}/?api={quote(config.PUBLIC_URL, safe='')}"
+    return f"{page}/"
 
 
 def app_keyboard(text: str = "🎮 Открыть бронирование") -> InlineKeyboardMarkup | None:
-    if not config.WEBAPP_URL.startswith("https://"):
+    url = webapp_url()
+    if not url.startswith("https://"):
         return None  # Telegram принимает WebApp только по https
-    return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=text, web_app=WebAppInfo(url=webapp_url()))]]
-    )
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=text, web_app=WebAppInfo(url=url))]])
+
+
+def is_admin(message: Message) -> bool:
+    return message.from_user.id in config.ADMIN_IDS
 
 
 def booking_keyboard(booking: Booking, now: int, *, extend: bool = True) -> InlineKeyboardMarkup:
@@ -201,13 +205,13 @@ async def cmd_start(message: Message) -> None:
         "• время выбирается <b>с точностью до минуты</b>\n"
         "• напомню о начале и о конце сессии, продлить можно в один тап\n\n"
     )
-    text += "Жми кнопку 👇" if keyboard else "⚠️ Бронирование ещё не настроено: укажите PUBLIC_URL в .env"
+    text += "Жми кнопку 👇" if keyboard else "⚠️ Бронирование временно недоступно — администратор уже чинит"
     await message.answer(text, reply_markup=keyboard)
 
 
 @router.message(Command("help"))
 async def cmd_help(message: Message) -> None:
-    extra = "\n/bookings — все брони (админ)" if message.from_user.id in config.ADMIN_IDS else ""
+    extra = "\n/bookings — все брони (админ)" if is_admin(message) else ""
     await message.answer(HELP + extra, reply_markup=app_keyboard())
 
 
@@ -247,7 +251,7 @@ async def cmd_status(message: Message, service: BookingService) -> None:
     await message.answer(text, reply_markup=app_keyboard("🎮 Забронировать ПК"))
 
 
-@router.message(Command("bookings"), F.from_user.id.in_(config.ADMIN_IDS))
+@router.message(Command("bookings"), is_admin)
 async def cmd_bookings(message: Message, service: BookingService) -> None:
     now = service.now()
     bookings = [b for pc_slots in service.slots_by_pc(now).values() for b in pc_slots]
